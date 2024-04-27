@@ -1,0 +1,108 @@
+---
+title: "Desafio para processo seletivo em análise de dados"
+author: "Vinicius Soares"
+date: "25/04/2024"
+output: 
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+
+library(readr)
+library(tidyverse)
+library(knitr)
+library(ggplot2)
+```
+Abrindo as bases de dados:  
+```{r}
+distritos <- read_csv(file = "dados/geosampa_distritos.csv")
+familias_extrema_pobreza <- read_csv("dados/observasampa_familias_extrema_pobreza.csv")
+```
+Criando uma base de dados unificada:  
+```{r}
+fam_extpobreza_distrito <- left_join(familias_extrema_pobreza, distritos, "ds_nome")
+```
+
+## Questões
+
+#### 1. Quantas famílias em situação de extrema pobreza existiam em São Paulo em 2023?
+Em São Paulo, em 2023, havia **765.114** famílias em situação de extrema pobreza.  
+
+```{r}
+df_23 <- 
+  fam_extpobreza_distrito %>% 
+  filter(ano == "2023")
+
+total_2023 <- sum(df_23$qtd_familias)
+total_2023
+```
+
+#### 2.  Qual o percentual (em relação ao total da cidade) de famílias em situação de extrema pobreza por Distrito em 2023?  
+
+```{r}
+df_23 %>% 
+  mutate(perc_distrito = (qtd_familias/total_2023)*100) %>% 
+  select(!ds_nome & !ds_sigla & !ds_subpref) %>% 
+  arrange(-perc_distrito)
+```
+
+#### 3. Qual distrito apresentou o maior aumento de famílias em situação de pobreza entre 2022 e 2023? 
+
+O distrito que apresentou o maior aumento de famílias em situação de extrema pobreza entre 2022 e 2023 foi o **Grajaú**, com um aumento absoluto de 5812 famílias nessa situação.  
+
+```{r}
+df_22 <-
+  fam_extpobreza_distrito %>% 
+  filter(ano == "2022") 
+
+df_22_23 <- 
+  left_join(df_23, df_22, "ds_nome") %>%
+  select(distrito.x, qtd_familias.y, qtd_familias.x, ds_nome, ds_subpref.x) %>% 
+  mutate(dif_22_23 = df_23$qtd_familias - df_22$qtd_familias) %>%
+  rename("distrito" = distrito.x, "qtd_familias_2023" = qtd_familias.x, "qtd_familias_2022" = qtd_familias.y, "ds_subpref" = ds_subpref.x)
+
+df_22_23 %>% 
+  summarise(distrito, qtd_familias_2022, qtd_familias_2023, dif_22_23) %>% 
+  arrange(-dif_22_23)
+```
+
+#### 4. Quantas famílias em situação de extrema pobreza existiam em cada Subprefeitura de São Paulo em 2023?  
+
+```{r}
+df_23 %>% 
+  group_by(ds_subpref) %>% 
+  summarise(sum(qtd_familias)) %>% 
+  rename("qtd_subpref" = "sum(qtd_familias)") %>% 
+  arrange(-qtd_subpref) %>% 
+  rename("Subprefeitura" = ds_subpref, "Quantidade" = qtd_subpref) %>% 
+  ungroup()
+```
+
+#### 5. Como variou o número de famílias em situação de pobreza entre 2013 e 2023 nos Distritos de Grajaú, Jardim Ângela, Cidade Ademar? Exiba graficamente o resultado, escolhendo a visualização que achar mais adequada.  
+
+```{r}
+fam_extpobreza_distrito %>% 
+  filter(ds_nome == "GRAJAU" | ds_nome == "CIDADE ADEMAR" | ds_nome == "JARDIM ANGELA") %>% 
+  ggplot() +
+  geom_point(aes(x = ano, y = qtd_familias, color = ds_nome, stroke = 2)) +
+  geom_line(aes(x = ano, y = qtd_familias, group = ds_nome, color = ds_nome)) +
+  scale_x_continuous(breaks = seq(2013, 2023, 1)) +
+  labs(x = "Ano", y = "Quantidade de famílias", color = "Distritos") +
+  theme_bw()
+```
+
+#### 6. Complete a seguinte frase: "De acordo com os dados do ObservaSampa, em 2023, metade dos Distritos de São Paulo, no máximo, ___ famílias em situação de extrema pobreza". Qual informação você utilizou para completar a frase?  
+
+```{r}
+summary(df_23$qtd_familias)
+```
+
+"De acordo com os dados do ObservaSampa, em 2023, metade dos Distritos de São Paulo possuía, no máximo, **5610** famílias em situação de extrema pobreza".   
+
+Esse valor foi encontrado a partir da mediana - ou segundo quartil -, medida de centralidade que indica exatamente o valor que separa a amostra na metade. Assim, essa estatística indica o valor que complementa adequadamente a frase.
